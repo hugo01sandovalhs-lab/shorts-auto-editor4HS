@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shorts Auto Editor</title>
+<style>
+  body{font-family:system-ui,sans-serif;max-width:760px;margin:2rem auto;padding:0 1rem;background:#0f0f12;color:#eee}
+  h1{font-size:1.4rem}
+  .box{border:2px dashed #444;border-radius:10px;padding:2rem;text-align:center;margin:1rem 0}
+  button{background:#e11d48;color:#fff;border:none;padding:.7rem 1.2rem;border-radius:8px;font-size:1rem;cursor:pointer}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  #log{background:#1a1a1f;padding:1rem;border-radius:8px;font-family:monospace;font-size:.8rem;max-height:220px;overflow-y:auto;white-space:pre-wrap}
+  .clip{background:#1a1a1f;padding:1rem;border-radius:8px;margin:.6rem 0;display:flex;gap:.8rem;align-items:center;flex-wrap:wrap}
+  .clip video{width:140px;border-radius:6px}
+  a.dl{color:#4ade80;text-decoration:underline}
+  label{display:block;margin:.4rem 0;font-size:.9rem}
+</style>
+</head>
+<body>
+<h1>🎬 Shorts Auto Editor</h1>
+<p>100% gratuit, illimité, traitement fait dans <b>ton navigateur</b> — aucun fichier envoyé à un serveur.</p>
+
+<div class="box">
+  <input type="file" id="file" accept="video/*">
+  <p>Dépose une vidéo (la tienne, dont tu as les droits).</p>
+</div>
+
+<label>Nombre de Shorts à générer :
+  <input type="number" id="count" value="5" min="1" max="10" style="width:4rem">
+</label>
+<label>Durée max par Short (secondes) :
+  <input type="number" id="maxlen" value="59" min="10" max="59" style="width:4rem">
+</label>
+
+<button id="run" disabled>Lancer le traitement</button>
+
+<div id="log" style="margin-top:1rem"></div>
+<div id="results"></div>
+
+<script type="module">
+import { FFmpeg } from 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js';
+import { toBlobURL, fetchFile } from 'https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js';
+
+const fileInput = document.getElementById('file');
+const runBtn = document.getElementById('run');
+const logEl = document.getElementById('log');
+const resultsEl = document.getElementById('results');
+
+let ffmpeg;
+let transcriber;
+let selectedFile;
+
+function log(msg){
+  logEl.textContent += msg + '\n';
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+fileInput.addEventListener('change', () => {
+  selectedFile = fileInput.files[0];
+  runBtn.disabled = !selectedFile;
+});
+
+async function loadFFmpeg(){
+  if (ffmpeg) return;
+  log('Chargement de ffmpeg (wasm)...');
+  ffmpeg = new FFmpeg();
+  ffmpeg.on('log', ({message}) => { window.__lastLogs = window.__lastLogs || []; window.__lastLogs.push(message); });
+  const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
+  await ffmpeg.load({
+    coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+    wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+  });
+  log('ffmpeg prêt.');
+}
+
+async function loadTranscriber(){
+  if (transcriber) return;
+  log('Chargement du modèle de transcription (Whisper tiny, une seule fois)...');
+  const { pipeline } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
+  transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny');
+  log('Modèle de transcription prêt.');
+}
+
+function getVideoDuration(file){
+  return new Promise((resolve) => {
+    const v = document.createElement('video');
+    v.preload = 'metadata';
+    v.onloadedmetadata = () => resolve(v.duration);
+    v.src = URL.createObjectURL(file);
+  });
+}
+
+async function detectSilences(duration){
+  window.__lastLogs = [];
+  await ffmpeg.exec(['-i','input.mp4','-af','silencedetect=noise=-30dB:d=0.5','-f','null','-']);
+  const logs = window.__lastLogs.join('\n');
+  const starts = [...logs.matchAll(/silence_start:\s*([\d.]+)/g)].map(m => parseFloat(m[1]));
+  const ends = [...logs.matchAll(/silence_end:\s*([\d.]+)/g)].map(m => parseFloat(m[1]));
+
+  const silences = [];
+  for (let i = 0; i < Math.min(starts.length, ends.length); i++) {
+    silences.push([starts[i], ends[i]]);
+  }
+
+  const segments = [];
+  let cursor = 0;
+  for (const [s, e] of silences) {
+    if (s - cursor > 1) segments.push([cursor, s]);
+    cursor = e;
+  }
+  if (duration - cursor > 1) segments.push([cursor, duration]);
+  return segments;
+}
+
+function pickHighlights(segments, count, maxLen){
+  const scored = segments
+    .map(([s, e]) => ({ start: s, end: Math.min(e, s + maxLen), len: Math.min(e - s, maxLen) }))
+    .filter(seg => seg.len >= 8)
+    .sort((a, b) => b.len - a.len)
+    .slice(0, count)
+    .sort((a, b) => a.start - b.start);
+  return scored;
+}
+
+async function decodeAudioForWhisper(fileData){
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const buf = await ctx.decodeAudioData(fileData.slice(0).buffer);
+  const offline = new OfflineAudioContext(1, Math.ceil(buf.duration * 16000), 16000);
+  const src = offline.createBufferSource();
+  src.buffer = buf;
+  src.connect(offline.destination);
+  src.start();
+  const rendered = await offline.startRendering();
+  return rendered.getChannelData(0);
+}
+
+function toSRT(chunks){
+  const fmt = (t) => {
+    const h = String(Math.floor(t/3600)).padStart(2,'0');
+    const m = String(Math.floor((t%3600)/60)).padStart(2,'0');
+    const s = String(Math.floor(t%60)).padStart(2,'0');
+    const ms = String(Math.floor((t%1)*1000)).padStart(3,'0');
+    return `${h}:${m}:${s},${ms}`;
+  };
+  return chunks.map((c, i) => {
+    const [start, end] = c.timestamp;
+    return `${i+1}\n${fmt(start||0)} --> ${fmt(end||(start+2))}\n${c.text.trim()}\n`;
+  }).join('\n');
+}
+
+async function processClip(seg, index){
+  const outName = `clip_${index}.mp4`;
+  await ffmpeg.exec([
+    '-i','input.mp4',
+    '-ss', String(seg.start), '-t', String(seg.len),
+    '-vf', "crop=ih*9/16:ih,scale=1080:1920",
+    '-c:v','libx264','-preset','fast','-crf','23',
+    '-c:a','aac',
+    outName
+  ]);
+  const data = await ffmpeg.readFile(outName);
+  const videoBlob = new Blob([data.buffer], { type: 'video/mp4' });
+
+  let srtBlob = null;
+  try {
+    const audioSamples = await decodeAudioForWhisper(data);
+    const out = await transcriber(audioSamples, { return_timestamps: true, chunk_length_s: 30 });
+    const srt = toSRT(out.chunks || []);
+    srtBlob = new Blob([srt], { type: 'text/plain' });
+  } catch (e) {
+    log(`Sous-titres clip ${index+1} : échec (${e.message}) — vidéo générée quand même.`);
+  }
+
+  return { videoBlob, srtBlob, index, start: seg.start, len: seg.len };
+}
+
+function renderResult(res){
+  const div = document.createElement('div');
+  div.className = 'clip';
+  const vUrl = URL.createObjectURL(res.videoBlob);
+  div.innerHTML = `
+    <video src="${vUrl}" controls></video>
+    <div>
+      <div>Short ${res.index+1} — début ${Math.round(res.start)}s, durée ${Math.round(res.len)}s</div>
+      <a class="dl" href="${vUrl}" download="short_${res.index+1}.mp4">⬇️ Télécharger la vidéo</a><br>
+      ${res.srtBlob ? `<a class="dl" href="${URL.createObjectURL(res.srtBlob)}" download="short_${res.index+1}.srt">⬇️ Télécharger les sous-titres (.srt)</a>` : ''}
+    </div>
+  `;
+  resultsEl.appendChild(div);
+}
+
+runBtn.addEventListener('click', async () => {
+  runBtn.disabled = true;
+  resultsEl.innerHTML = '';
+  logEl.textContent = '';
+  try {
+    const count = parseInt(document.getElementById('count').value, 10);
+    const maxlen = parseInt(document.getElementById('maxlen').value, 10);
+
+    await loadFFmpeg();
+    log('Lecture de la vidéo...');
+    await ffmpeg.writeFile('input.mp4', await fetchFile(selectedFile));
+
+    const duration = await getVideoDuration(selectedFile);
+    log(`Durée totale : ${Math.round(duration)}s`);
+
+    log('Détection des passages parlés / silences...');
+    const segments = await detectSilences(duration);
+    const highlights = pickHighlights(segments, count, maxlen);
+    log(`${highlights.length} moment(s) fort(s) détecté(s).`);
+
+    await loadTranscriber();
+
+    for (let i = 0; i < highlights.length; i++) {
+      log(`Traitement du Short ${i+1}/${highlights.length}...`);
+      const res = await processClip(highlights[i], i);
+      renderResult(res);
+    }
+    log('Terminé.');
+  } catch (e) {
+    log('Erreur : ' + e.message);
+    console.error(e);
+  } finally {
+    runBtn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
