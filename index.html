@@ -235,7 +235,7 @@ let transcriber;
 let fontLoaded = false;
 
 async function loadFFmpeg(logFn){
-  if (ffmpeg) return;
+  if (ffmpeg && ffmpeg.loaded) return;
   logFn('Chargement de ffmpeg (wasm)...');
   ffmpeg = new FFmpeg();
   ffmpeg.on('log', ({message}) => { window.__lastLogs = window.__lastLogs || []; window.__lastLogs.push(message); });
