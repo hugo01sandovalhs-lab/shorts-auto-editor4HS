@@ -1,0 +1,788 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shorts Auto Editor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,500;6..96,700&family=Figtree:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0e1512; --bg-soft:#132019; --card:#182620; --card-border:#25352c;
+    --cream:#f2ede3; --muted:#9db0a4; --gold:#e0a83c; --terracotta:#d98673;
+    --rust:#b5613a; --green:#7bc79a;
+  }
+  *{box-sizing:border-box}
+  body{
+    font-family:'Figtree',system-ui,sans-serif;
+    max-width:920px;margin:0 auto;padding:2.5rem 1.1rem 5rem;
+    background:var(--bg);color:var(--cream);line-height:1.5;
+  }
+  h1{font-family:'Bodoni Moda',serif;font-size:2rem;font-weight:700;margin:0 0 .3rem;letter-spacing:.01em}
+  h1 span{color:var(--gold)}
+  .subtitle{color:var(--muted);margin:0 0 1.5rem;font-size:.98rem}
+  h2{font-family:'Bodoni Moda',serif;font-size:1.2rem;font-weight:600;margin:0 0 1rem;color:var(--cream)}
+  .step-label{display:inline-flex;align-items:center;justify-content:center;width:1.6rem;height:1.6rem;border-radius:50%;background:var(--gold);color:#1a1206;font-size:.85rem;font-weight:700;margin-right:.5rem}
+
+  .quicklinks{display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:1.75rem}
+  .quicklinks a{
+    display:inline-flex;align-items:center;gap:.4rem;background:var(--card);border:1px solid var(--card-border);
+    color:var(--cream);text-decoration:none;padding:.5rem .9rem;border-radius:999px;font-size:.85rem;transition:border-color .15s,color .15s
+  }
+  .quicklinks a:hover{border-color:var(--gold);color:var(--gold)}
+
+  .tabs{display:flex;gap:.5rem;margin-bottom:1.5rem;border-bottom:1px solid var(--card-border)}
+  .tab{background:none;border:none;color:var(--muted);font-family:'Figtree',sans-serif;font-weight:600;font-size:.95rem;
+       padding:.7rem 1rem;cursor:pointer;border-bottom:2px solid transparent}
+  .tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+  .panel{display:none}
+  .panel.active{display:block}
+
+  .card{background:var(--card);border:1px solid var(--card-border);border-radius:16px;padding:1.5rem;margin:1.25rem 0}
+  .dropzone{border:2px dashed var(--card-border);border-radius:14px;padding:2rem 1.2rem;text-align:center;margin-bottom:1.25rem;transition:border-color .2s}
+  .dropzone:hover{border-color:var(--gold)}
+  .dropzone p{color:var(--muted);margin:.5rem 0 0;font-size:.88rem}
+  input[type=file]{color:var(--cream);font-size:.88rem;max-width:100%}
+
+  #previewWrap{display:none;margin:1rem 0}
+  video{border-radius:12px;background:#000;max-width:100%}
+  #previewPlayer{width:100%;max-width:320px;display:block;margin:0 auto}
+
+  .field-row{display:flex;gap:1.25rem;flex-wrap:wrap;margin-bottom:1.1rem}
+  label{font-size:.83rem;color:var(--muted)}
+  select,input[type=number],input[type=text]{
+    display:block;margin-top:.35rem;background:var(--bg-soft);color:var(--cream);
+    border:1px solid var(--card-border);border-radius:8px;padding:.42rem .6rem;font-size:.92rem;font-family:inherit
+  }
+  input[type=number]{width:5rem}
+  select:focus,input:focus{outline:none;border-color:var(--gold)}
+  input[type=range]{accent-color:var(--gold);width:100%}
+
+  button{
+    font-family:'Figtree',sans-serif;font-weight:600;font-size:.9rem;
+    background:var(--gold);color:#1a1206;border:none;padding:.68rem 1.3rem;
+    border-radius:10px;cursor:pointer;transition:filter .15s,transform .15s;min-height:44px;
+  }
+  button:hover:not(:disabled){filter:brightness(1.08)}
+  button:active:not(:disabled){transform:scale(.98)}
+  button:disabled{opacity:.35;cursor:not-allowed}
+  button.secondary{background:transparent;color:var(--cream);border:1px solid var(--card-border)}
+  button.secondary:hover:not(:disabled){border-color:var(--gold);color:var(--gold)}
+  button.ghost{background:transparent;color:var(--green);border:1px solid var(--card-border);font-size:.8rem;padding:.4rem .75rem;min-height:auto}
+  button.icon{background:var(--bg-soft);color:var(--cream);border:1px solid var(--card-border);padding:.3rem .55rem;min-height:auto;font-size:.85rem}
+
+  #log{
+    background:var(--bg-soft);border:1px solid var(--card-border);padding:1rem;border-radius:10px;
+    font-family:ui-monospace,monospace;font-size:.76rem;max-height:180px;overflow-y:auto;
+    white-space:pre-wrap;color:var(--green);margin-top:1rem
+  }
+
+  .row{
+    background:var(--bg-soft);border:1px solid var(--card-border);padding:.85rem 1rem;border-radius:12px;
+    margin:.6rem 0;display:flex;gap:1rem;align-items:flex-start;flex-wrap:wrap
+  }
+  .row canvas{border-radius:8px;background:#000;flex-shrink:0}
+  .row .row-main{flex:1;min-width:200px}
+  .row .field{display:flex;align-items:center;gap:.4rem;font-size:.83rem;color:var(--muted);margin-bottom:.4rem}
+  .row input[type=number]{width:4.2rem;margin:0}
+  .chk{width:1.1rem;height:1.1rem;accent-color:var(--gold)}
+  .score{font-size:.72rem;color:var(--terracotta)}
+  .trimbar{position:relative;height:6px;background:#25352c;border-radius:3px;margin:.5rem 0}
+  .trimbar .fill{position:absolute;height:100%;background:var(--gold);border-radius:3px}
+
+  .clip{background:var(--bg-soft);border:1px solid var(--card-border);border-radius:14px;padding:1.2rem;margin:1rem 0}
+  .clip video{width:190px;border-radius:10px;display:block;margin-bottom:.7rem}
+  .clip-meta{font-size:.83rem;color:var(--muted);margin-bottom:.6rem}
+  textarea{
+    width:100%;min-height:100px;background:var(--bg);color:var(--cream);border:1px solid var(--card-border);
+    border-radius:10px;padding:.55rem;font-family:ui-monospace,monospace;font-size:.78rem;resize:vertical
+  }
+  textarea:focus{outline:none;border-color:var(--gold)}
+  .dl-row{display:flex;gap:.6rem;margin-top:.7rem;flex-wrap:wrap}
+
+  #candidatesSection,#results,#memResults{display:none}
+
+  .mem-item{background:var(--bg-soft);border:1px solid var(--card-border);border-radius:12px;padding:.7rem .9rem;margin:.5rem 0;display:flex;gap:.8rem;align-items:center;flex-wrap:wrap}
+  .mem-item .thumb{width:52px;height:52px;object-fit:cover;border-radius:8px;background:#000;flex-shrink:0}
+  .mem-item .name{font-size:.82rem;color:var(--muted);flex:1;min-width:120px;word-break:break-all}
+  .mem-item .btns{display:flex;gap:.3rem}
+
+  @media (max-width:560px){
+    body{padding:1.5rem .8rem 4rem}
+    h1{font-size:1.6rem}
+    .card{padding:1.1rem}
+    .clip video{width:100%;max-width:220px}
+    .quicklinks a{font-size:.8rem;padding:.45rem .75rem}
+  }
+</style>
+</head>
+<body>
+
+<h1>🎬 Shorts <span>Auto Editor</span></h1>
+<p class="subtitle">100% gratuit, illimité, traitement fait entièrement dans ton navigateur — aucun fichier envoyé à un serveur.</p>
+
+<div class="quicklinks">
+  <a href="https://studio.youtube.com" target="_blank" rel="noopener">📤 YouTube Studio (upload)</a>
+  <a href="https://www.youtube.com/shorts" target="_blank" rel="noopener">✂️ YouTube Shorts</a>
+  <a href="https://www.youtube.com/upload" target="_blank" rel="noopener">⬆️ Upload rapide</a>
+</div>
+
+<div class="tabs">
+  <button class="tab active" data-tab="shorts">Shorts</button>
+  <button class="tab" data-tab="souvenirs">Souvenirs (Photos &amp; Vidéo)</button>
+</div>
+
+<!-- ===================== SHORTS PANEL ===================== -->
+<div class="panel active" id="panel-shorts">
+
+  <div class="card">
+    <h2><span class="step-label">1</span>Ta vidéo</h2>
+    <div class="dropzone">
+      <input type="file" id="file" accept="video/*" capture="environment">
+      <p>Depuis ton ordinateur ou ton téléphone (caméra ou galerie) — vidéo dont tu as les droits.</p>
+    </div>
+    <div id="previewWrap">
+      <video id="previewPlayer" controls></video>
+    </div>
+
+    <div class="field-row">
+      <label>Après le pic de bruit (s, 10 à 15)
+        <input type="number" id="postRoll" value="12" min="10" max="15">
+      </label>
+      <label>Moments cochés automatiquement
+        <input type="number" id="count" value="5" min="1" max="12">
+      </label>
+      <label>Style de sous-titres
+        <select id="capStyle">
+          <option value="tiktok">Gras jaune (style TikTok)</option>
+          <option value="minimal">Minimal blanc</option>
+          <option value="gold">Or (identité du site)</option>
+        </select>
+      </label>
+    </div>
+    <label style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem">
+      <input type="checkbox" id="burnCaptions" class="chk"> Incruster les sous-titres dans la vidéo (sinon fichier .srt séparé)
+    </label>
+
+    <button id="analyze" disabled>Analyser la vidéo</button>
+  </div>
+
+  <div id="log"></div>
+
+  <div class="card" id="candidatesSection">
+    <h2><span class="step-label">2</span>Moments détectés</h2>
+    <p class="subtitle" style="margin-bottom:1rem">Coche ceux à garder, ajuste précisément le début/la durée, ou ajoute un moment 100% manuel.</p>
+    <div id="candidates"></div>
+    <div style="margin-top:1rem;display:flex;gap:.8rem;flex-wrap:wrap">
+      <button class="secondary" id="addManual">+ Ajouter un moment manuel</button>
+      <button id="generate">Générer les Shorts sélectionnés</button>
+    </div>
+  </div>
+
+  <div class="card" id="results">
+    <h2><span class="step-label">3</span>Tes Shorts</h2>
+    <div id="resultsList"></div>
+  </div>
+</div>
+
+<!-- ===================== SOUVENIRS PANEL ===================== -->
+<div class="panel" id="panel-souvenirs">
+  <div class="card">
+    <h2>Montage souvenirs (photos &amp; vidéos)</h2>
+    <p class="subtitle">Assemble tes photos et courts clips en un montage avec effet de zoom doux et musique — pour tes vacances, un événement, etc.</p>
+    <div class="dropzone">
+      <input type="file" id="memFiles" accept="image/*,video/*" multiple>
+      <p>Sélectionne plusieurs photos et/ou vidéos, dans l'ordre que tu veux (modifiable ensuite).</p>
+    </div>
+    <div id="memList"></div>
+
+    <div class="field-row" style="margin-top:1rem">
+      <label>Format
+        <select id="memOrientation">
+          <option value="vertical">Vertical 9:16 (Reels/Stories)</option>
+          <option value="horizontal">Horizontal 16:9 (classique)</option>
+        </select>
+      </label>
+      <label>Durée par photo (s)
+        <input type="number" id="memImgDur" value="2.5" min="1" max="10" step="0.5">
+      </label>
+    </div>
+    <div class="field-row">
+      <label style="flex:1;min-width:200px">Musique de fond (optionnel)
+        <input type="file" id="memMusic" accept="audio/*">
+      </label>
+    </div>
+
+    <button id="memGenerate" disabled>Générer le montage souvenirs</button>
+  </div>
+
+  <div id="memLog"></div>
+
+  <div class="card" id="memResults">
+    <h2>Ton montage</h2>
+    <div id="memResultsList"></div>
+  </div>
+</div>
+
+<script type="module">
+import { FFmpeg } from 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js';
+import { toBlobURL, fetchFile } from 'https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js';
+
+/* ---------- shared ---------- */
+let ffmpeg;
+let transcriber;
+let fontLoaded = false;
+
+async function loadFFmpeg(logFn){
+  if (ffmpeg && ffmpeg.loaded) return;
+  logFn('Chargement de ffmpeg (wasm)...');
+  ffmpeg = new FFmpeg();
+  ffmpeg.on('log', ({message}) => { window.__lastLogs = window.__lastLogs || []; window.__lastLogs.push(message); });
+  let lastProgressLog = 0;
+  ffmpeg.on('progress', ({ progress }) => {
+    const now = Date.now();
+    if (progress > 0 && progress <= 1 && now - lastProgressLog > 2000) {
+      lastProgressLog = now;
+      (window.__activeLog || logFn)(`... ${Math.round(progress*100)}%`);
+    }
+  });
+  const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
+  await ffmpeg.load({
+    coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+    wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+    classWorkerURL: new URL('worker.js', window.location.href).href,
+  });
+  logFn('ffmpeg prêt.');
+}
+
+async function loadTranscriber(logFn){
+  if (transcriber) return;
+  logFn('Chargement du modèle de transcription (Whisper tiny, une seule fois)...');
+  const { pipeline } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
+  transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny');
+  logFn('Modèle de transcription prêt.');
+}
+
+async function ensureFont(){
+  if (fontLoaded) return;
+  const resp = await fetch('https://cdn.jsdelivr.net/gh/google/fonts/apache/roboto/Roboto-Bold.ttf');
+  const buf = new Uint8Array(await resp.arrayBuffer());
+  await ffmpeg.writeFile('font.ttf', buf);
+  fontLoaded = true;
+}
+
+function fmtT(t){
+  const m = Math.floor(t/60), s = Math.round(t%60);
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+
+function downloadBlob(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+/* ---------- tabs ---------- */
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+/* ===================================================================
+   SHORTS
+=================================================================== */
+const fileInput = document.getElementById('file');
+const analyzeBtn = document.getElementById('analyze');
+const generateBtn = document.getElementById('generate');
+const addManualBtn = document.getElementById('addManual');
+const logEl = document.getElementById('log');
+const resultsSection = document.getElementById('results');
+const resultsEl = document.getElementById('resultsList');
+const candidatesEl = document.getElementById('candidates');
+const candidatesSection = document.getElementById('candidatesSection');
+const previewWrap = document.getElementById('previewWrap');
+const previewPlayer = document.getElementById('previewPlayer');
+
+let selectedFile, duration = 0, speechSegments = [], candidates = [], candCounter = 0, motionFrames = null, motionTimes = [];
+const MW = 64, MH = 36;
+
+function log(msg){ logEl.textContent += msg + '\n'; logEl.scrollTop = logEl.scrollHeight; }
+
+fileInput.addEventListener('change', () => {
+  selectedFile = fileInput.files[0];
+  analyzeBtn.disabled = !selectedFile;
+  candidatesSection.style.display = 'none';
+  resultsSection.style.display = 'none';
+  resultsEl.innerHTML = '';
+  if (selectedFile) {
+    previewPlayer.src = URL.createObjectURL(selectedFile);
+    previewWrap.style.display = 'block';
+  }
+});
+
+function getVideoDuration(file){
+  return new Promise((resolve) => {
+    const v = document.createElement('video');
+    v.preload = 'metadata';
+    v.onloadedmetadata = () => resolve(v.duration);
+    v.src = URL.createObjectURL(file);
+  });
+}
+
+async function detectSpeechSegments(){
+  window.__lastLogs = [];
+  await ffmpeg.exec(['-i','input.mp4','-vn','-af','silencedetect=noise=-30dB:d=0.5','-f','null','-']);
+  const logs = window.__lastLogs.join('\n');
+  const starts = [...logs.matchAll(/silence_start:\s*([\d.]+)/g)].map(m => parseFloat(m[1]));
+  const ends = [...logs.matchAll(/silence_end:\s*([\d.]+)/g)].map(m => parseFloat(m[1]));
+  const silences = [];
+  for (let i = 0; i < Math.min(starts.length, ends.length); i++) silences.push([starts[i], ends[i]]);
+  const segments = [];
+  let cursor = 0;
+  for (const [s, e] of silences) { if (s - cursor > 0.3) segments.push([cursor, s]); cursor = e; }
+  if (duration - cursor > 0.3) segments.push([cursor, duration]);
+  return segments;
+}
+
+async function computeMotionTimeline(){
+  const frameSize = MW*MH;
+  window.__lastLogs = [];
+  await ffmpeg.exec(['-skip_frame','nokey','-i','input.mp4','-an','-vf',`scale=${MW}:${MH}:flags=fast_bilinear,format=gray,showinfo`,'-vsync','vfr','-f','rawvideo','motion.raw']);
+  const raw = await ffmpeg.readFile('motion.raw');
+  motionFrames = raw;
+  const logs = window.__lastLogs.join('\n');
+  motionTimes = [...logs.matchAll(/pts_time:([\d.]+)/g)].map(m => parseFloat(m[1]));
+  const frameCount = Math.min(motionTimes.length, Math.floor(raw.length / frameSize));
+  const motion = [];
+  for (let i = 1; i < frameCount; i++) {
+    let diff = 0;
+    const prevOff = (i-1)*frameSize, curOff = i*frameSize;
+    for (let p = 0; p < frameSize; p++) diff += Math.abs(raw[curOff+p] - raw[prevOff+p]);
+    motion.push({ t: motionTimes[i], score: diff/frameSize });
+  }
+  return motion;
+}
+
+function drawThumb(canvas, atTime){
+  if (!motionFrames || !motionTimes.length) return;
+  let idx = 0, best = Infinity;
+  for (let i = 0; i < motionTimes.length; i++) {
+    const d = Math.abs(motionTimes[i] - atTime);
+    if (d < best) { best = d; idx = i; }
+  }
+  const frameSize = MW*MH;
+  const off = idx*frameSize;
+  const ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(MW, MH);
+  for (let p = 0; p < frameSize; p++) {
+    const v = motionFrames[off+p];
+    img.data[p*4]=v; img.data[p*4+1]=v; img.data[p*4+2]=v; img.data[p*4+3]=255;
+  }
+  const tmp = document.createElement('canvas'); tmp.width=MW; tmp.height=MH;
+  tmp.getContext('2d').putImageData(img,0,0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(tmp,0,0,canvas.width,canvas.height);
+}
+
+function speechCoverage(start, end){
+  let cov = 0;
+  for (const [s, e] of speechSegments) cov += Math.max(0, Math.min(e, end) - Math.max(s, start));
+  return cov / (end - start);
+}
+
+async function computeVolumeTimeline(){
+  const SR = 8000, WIN_S = 0.25;
+  await ffmpeg.exec(['-i','input.mp4','-ac','1','-ar',String(SR),'-f','s16le','audio.raw']);
+  const raw = await ffmpeg.readFile('audio.raw');
+  const samples = new Int16Array(raw.buffer, raw.byteOffset, Math.floor(raw.byteLength/2));
+  const winSize = Math.floor(SR * WIN_S);
+  const volume = [];
+  for (let i = 0; i + winSize <= samples.length; i += winSize) {
+    let sumSq = 0;
+    for (let j = 0; j < winSize; j++) { const v = samples[i+j]/32768; sumSq += v*v; }
+    volume.push({ t: i/SR, rms: Math.sqrt(sumSq/winSize) });
+  }
+  return volume;
+}
+
+function detectVolumeOnsets(volume, preRoll, minGap){
+  const bgBuckets = Math.round(6 / 0.25);
+  const onsets = [];
+  let lastOnsetTime = -999;
+  for (let i = 1; i < volume.length; i++) {
+    const bgSlice = volume.slice(Math.max(0, i - bgBuckets), i);
+    const bgAvg = bgSlice.length ? bgSlice.reduce((a,b) => a+b.rms, 0)/bgSlice.length : volume[i].rms;
+    const isRise = volume[i].rms > bgAvg * 1.6 && volume[i].rms > 0.02;
+    if (isRise && volume[i].t - lastOnsetTime > minGap) {
+      onsets.push({ t: volume[i].t, intensity: volume[i].rms });
+      lastOnsetTime = volume[i].t;
+    }
+  }
+  return onsets;
+}
+
+function buildCandidatesFromOnsets(onsets, motion, preRoll, postRoll){
+  const maxIntensity = Math.max(...onsets.map(o => o.intensity), 0.001);
+  const built = onsets.map((o, i) => {
+    const start = Math.max(0, o.t - preRoll);
+    const len = Math.min(preRoll + postRoll, duration - start);
+    const inWin = motion.filter(m => m.t >= start && m.t < start+len);
+    const avgMotion = inWin.length ? inWin.reduce((a,b)=>a+b.score,0)/inWin.length : 0;
+    return { id: 'auto-'+i, start, len, score: o.intensity/maxIntensity, motion: avgMotion };
+  });
+  built.sort((a,b) => b.score - a.score);
+  return built;
+}
+
+function renderCandidates(){
+  candidatesEl.innerHTML = '';
+  candidates.forEach((c) => {
+    const div = document.createElement('div');
+    div.className = 'row';
+    div.dataset.id = c.id;
+    div.innerHTML = `
+      <canvas width="72" height="40"></canvas>
+      <div class="row-main">
+        <div class="field"><input type="checkbox" class="chk" ${c.checked ? 'checked' : ''}> ${c.score !== undefined ? '🔊 intensité ' + c.score.toFixed(2) : 'moment manuel'}</div>
+        <div class="trimbar"><div class="fill"></div></div>
+        <div class="field">Début (s) <input type="number" class="start" value="${c.start.toFixed(1)}" min="0" max="${duration.toFixed(1)}" step="0.5"></div>
+        <div class="field">Durée (s) <input type="number" class="len" value="${c.len.toFixed(1)}" min="1" max="59" step="0.5"></div>
+        <button type="button" class="ghost prev">▶ Aperçu</button>
+      </div>
+    `;
+    const canvas = div.querySelector('canvas');
+    drawThumb(canvas, c.start + c.len/2);
+    const startInput = div.querySelector('.start');
+    const lenInput = div.querySelector('.len');
+    const fill = div.querySelector('.fill');
+    function updateBar(){
+      const s = parseFloat(startInput.value), l = parseFloat(lenInput.value);
+      fill.style.left = (s/duration*100)+'%';
+      fill.style.width = (l/duration*100)+'%';
+      drawThumb(canvas, s + l/2);
+    }
+    startInput.addEventListener('input', updateBar);
+    lenInput.addEventListener('input', updateBar);
+    updateBar();
+    div.querySelector('.prev').addEventListener('click', () => {
+      const start = parseFloat(startInput.value), len = parseFloat(lenInput.value);
+      previewPlayer.currentTime = start;
+      previewPlayer.play();
+      setTimeout(() => previewPlayer.pause(), len*1000);
+    });
+    candidatesEl.appendChild(div);
+  });
+}
+
+addManualBtn.addEventListener('click', () => {
+  candCounter++;
+  candidates.push({ id: 'manual-'+candCounter, start: 0, len: 6, checked: true });
+  candidates.sort((a,b) => a.start - b.start);
+  renderCandidates();
+});
+
+analyzeBtn.addEventListener('click', async () => {
+  window.__activeLog = log;
+  analyzeBtn.disabled = true;
+  logEl.textContent = '';
+  candidatesSection.style.display = 'none';
+  resultsSection.style.display = 'none';
+  resultsEl.innerHTML = '';
+  try {
+    const preRoll = 3;
+    const postRoll = Math.min(15, Math.max(10, parseInt(document.getElementById('postRoll').value, 10)));
+    const count = parseInt(document.getElementById('count').value, 10);
+
+    await loadFFmpeg(log);
+    log('Lecture de la vidéo...');
+    await ffmpeg.writeFile('input.mp4', await fetchFile(selectedFile));
+    duration = await getVideoDuration(selectedFile);
+    log(`Durée totale : ${fmtT(duration)}`);
+
+    log('Détection des passages parlés...');
+    speechSegments = await detectSpeechSegments();
+
+    log("Analyse du mouvement dans l'image...");
+    const motion = await computeMotionTimeline();
+
+    log("Analyse de l'intensité sonore (signal prioritaire)...");
+    const volume = await computeVolumeTimeline();
+    const onsets = detectVolumeOnsets(volume, preRoll, preRoll + postRoll);
+    candidates = buildCandidatesFromOnsets(onsets, motion, preRoll, postRoll);
+    candidates.forEach((c, i) => { c.checked = i < count; });
+    candidates.sort((a,b) => a.start - b.start);
+    candCounter = candidates.length;
+
+    log(`${candidates.length} pic(s) de bruit détecté(s). Coche ceux que tu veux garder ci-dessous.`);
+    renderCandidates();
+    candidatesSection.style.display = 'block';
+  } catch (e) {
+    log('Erreur : ' + e.message);
+    console.error(e);
+  } finally {
+    analyzeBtn.disabled = false;
+  }
+});
+
+async function decodeAudioForWhisper(fileData){
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const buf = await ctx.decodeAudioData(fileData.slice(0).buffer);
+  const offline = new OfflineAudioContext(1, Math.ceil(buf.duration * 16000), 16000);
+  const src = offline.createBufferSource();
+  src.buffer = buf; src.connect(offline.destination); src.start();
+  const rendered = await offline.startRendering();
+  return rendered.getChannelData(0);
+}
+
+function toSRT(chunks){
+  const fmt = (t) => {
+    const h = String(Math.floor(t/3600)).padStart(2,'0');
+    const m = String(Math.floor((t%3600)/60)).padStart(2,'0');
+    const s = String(Math.floor(t%60)).padStart(2,'0');
+    const ms = String(Math.floor((t%1)*1000)).padStart(3,'0');
+    return `${h}:${m}:${s},${ms}`;
+  };
+  return chunks.map((c, i) => {
+    const [start, end] = c.timestamp;
+    return `${i+1}\n${fmt(start||0)} --> ${fmt(end||((start||0)+2))}\n${c.text.trim()}\n`;
+  }).join('\n');
+}
+
+const CAP_STYLES = {
+  tiktok:  { size: 64, color: 'white',   border: 4, y: 'h-220' },
+  minimal: { size: 44, color: 'white',   border: 0, y: 'h-160' },
+  gold:    { size: 56, color: '0xE0A83C', border: 3, y: 'h-200' },
+};
+
+async function burnCaptions(inputName, outputName, chunks, styleKey){
+  await ensureFont();
+  const style = CAP_STYLES[styleKey] || CAP_STYLES.tiktok;
+  const filters = [];
+  for (let i = 0; i < chunks.length; i++) {
+    const [start, end] = chunks[i].timestamp;
+    if (start == null) continue;
+    const txtFile = `cap_${i}.txt`;
+    await ffmpeg.writeFile(txtFile, chunks[i].text.trim());
+    const e = end || (start + 2);
+    filters.push(`drawtext=fontfile=font.ttf:textfile=${txtFile}:fontsize=${style.size}:fontcolor=${style.color}:borderw=${style.border}:bordercolor=black:x=(w-text_w)/2:y=${style.y}:enable='between(t,${start},${e})'`);
+  }
+  const vf = "crop=ih*9/16:ih,scale=1080:1920" + (filters.length ? ',' + filters.join(',') : '');
+  await ffmpeg.exec(['-i', inputName, '-vf', vf, '-c:v','libx264','-preset','fast','-crf','23','-c:a','aac', outputName]);
+}
+
+async function processClip(start, len, index, styleKey, doBurn){
+  const rawName = `raw_${index}.mp4`;
+  const outName = `clip_${index}.mp4`;
+  await ffmpeg.exec([
+    '-i','input.mp4','-ss', String(start), '-t', String(len),
+    '-vf', "crop=ih*9/16:ih,scale=1080:1920",
+    '-c:v','libx264','-preset','fast','-crf','23','-c:a','aac',
+    rawName
+  ]);
+  let data = await ffmpeg.readFile(rawName);
+
+  let srtText = '', chunks = [];
+  try {
+    const audioSamples = await decodeAudioForWhisper(data);
+    const out = await transcriber(audioSamples, { return_timestamps: true, chunk_length_s: 30 });
+    chunks = out.chunks || [];
+    srtText = toSRT(chunks);
+  } catch (e) {
+    log(`Sous-titres clip ${index+1} : échec (${e.message}) — vidéo générée quand même.`);
+  }
+
+  if (doBurn && chunks.length) {
+    try {
+      await burnCaptions(rawName, outName, chunks, styleKey);
+      data = await ffmpeg.readFile(outName);
+    } catch (e) {
+      log(`Incrustation sous-titres clip ${index+1} : échec (${e.message}) — vidéo sans sous-titres incrustés livrée.`);
+    }
+  }
+
+  const videoBlob = new Blob([data.buffer], { type: 'video/mp4' });
+  return { videoBlob, srtText, index, start, len };
+}
+
+function renderResult(res){
+  const div = document.createElement('div');
+  div.className = 'clip';
+  const vUrl = URL.createObjectURL(res.videoBlob);
+  div.innerHTML = `
+    <video src="${vUrl}" controls></video>
+    <div class="clip-meta">Short ${res.index+1} — début ${fmtT(res.start)}, durée ${Math.round(res.len)}s</div>
+    <label>Sous-titres (modifiables avant téléchargement)
+      <textarea class="srt">${res.srtText}</textarea>
+    </label>
+    <div class="dl-row">
+      <button class="secondary dl" type="button">⬇️ Télécharger la vidéo</button>
+      <button class="secondary dl" type="button">⬇️ Télécharger les sous-titres (.srt)</button>
+    </div>
+  `;
+  div.querySelectorAll('.dl')[0].addEventListener('click', () => downloadBlob(res.videoBlob, `short_${res.index+1}.mp4`));
+  div.querySelectorAll('.dl')[1].addEventListener('click', () => {
+    downloadBlob(new Blob([div.querySelector('.srt').value], {type:'text/plain'}), `short_${res.index+1}.srt`);
+  });
+  resultsEl.appendChild(div);
+}
+
+generateBtn.addEventListener('click', async () => {
+  window.__activeLog = log;
+  generateBtn.disabled = true;
+  resultsEl.innerHTML = '';
+  resultsSection.style.display = 'block';
+  try {
+    const rows = [...candidatesEl.querySelectorAll('.row')].filter(r => r.querySelector('.chk').checked);
+    if (!rows.length) { log('Aucun moment coché.'); return; }
+    const styleKey = document.getElementById('capStyle').value;
+    const doBurn = document.getElementById('burnCaptions').checked;
+    await loadTranscriber(log);
+    for (let i = 0; i < rows.length; i++) {
+      const start = parseFloat(rows[i].querySelector('.start').value);
+      const len = parseFloat(rows[i].querySelector('.len').value);
+      log(`Traitement du Short ${i+1}/${rows.length} (${fmtT(start)}, ${len}s)...`);
+      const res = await processClip(start, len, i, styleKey, doBurn);
+      renderResult(res);
+    }
+    log('Terminé.');
+  } catch (e) {
+    log('Erreur : ' + e.message);
+    console.error(e);
+  } finally {
+    generateBtn.disabled = false;
+  }
+});
+
+/* ===================================================================
+   SOUVENIRS (photos + vidéo)
+=================================================================== */
+const memFilesInput = document.getElementById('memFiles');
+const memListEl = document.getElementById('memList');
+const memGenerateBtn = document.getElementById('memGenerate');
+const memLogEl = document.getElementById('memLog');
+const memResultsSection = document.getElementById('memResults');
+const memResultsList = document.getElementById('memResultsList');
+
+let memItems = [];
+
+function memLog(msg){ memLogEl.textContent += msg + '\n'; memLogEl.scrollTop = memLogEl.scrollHeight; }
+
+memFilesInput.addEventListener('change', () => {
+  for (const f of memFilesInput.files) {
+    memItems.push({ file: f, type: f.type.startsWith('image') ? 'image' : 'video', duration: null });
+  }
+  memFilesInput.value = '';
+  renderMemList();
+});
+
+function renderMemList(){
+  memListEl.innerHTML = '';
+  memGenerateBtn.disabled = memItems.length === 0;
+  memItems.forEach((it, idx) => {
+    const div = document.createElement('div');
+    div.className = 'mem-item';
+    const thumbUrl = URL.createObjectURL(it.file);
+    div.innerHTML = `
+      ${it.type === 'image' ? `<img class="thumb" src="${thumbUrl}">` : `<video class="thumb" src="${thumbUrl}" muted></video>`}
+      <span class="name">${it.file.name} (${it.type === 'image' ? 'photo' : 'vidéo'})</span>
+      <div class="btns">
+        <button type="button" class="icon up">↑</button>
+        <button type="button" class="icon down">↓</button>
+        <button type="button" class="icon remove">✕</button>
+      </div>
+    `;
+    div.querySelector('.up').addEventListener('click', () => { if (idx>0){ [memItems[idx-1],memItems[idx]]=[memItems[idx],memItems[idx-1]]; renderMemList(); }});
+    div.querySelector('.down').addEventListener('click', () => { if (idx<memItems.length-1){ [memItems[idx+1],memItems[idx]]=[memItems[idx],memItems[idx+1]]; renderMemList(); }});
+    div.querySelector('.remove').addEventListener('click', () => { memItems.splice(idx,1); renderMemList(); });
+    memListEl.appendChild(div);
+  });
+}
+
+async function buildSegment(item, index, W, H, defaultImgDur){
+  const segName = `mem_${index}.mp4`;
+  if (item.type === 'image') {
+    await ffmpeg.writeFile(`img_${index}.jpg`, await fetchFile(item.file));
+    const dur = item.duration || defaultImgDur;
+    const frames = Math.max(1, Math.round(dur*25));
+    try {
+      await ffmpeg.exec([
+        '-loop','1','-i',`img_${index}.jpg`,'-t', String(dur),
+        '-vf', `scale=${W*2}:${H*2}:force_original_aspect_ratio=increase,crop=${W*2}:${H*2},zoompan=z='min(zoom+0.0015,1.3)':d=${frames}:s=${W}x${H}:fps=25,format=yuv420p`,
+        '-r','25', segName
+      ]);
+    } catch (e) {
+      memLog(`Effet de zoom impossible sur "${item.file.name}", image statique utilisée.`);
+      await ffmpeg.exec([
+        '-loop','1','-i',`img_${index}.jpg`,'-t', String(dur),
+        '-vf', `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},format=yuv420p`,
+        '-r','25', segName
+      ]);
+    }
+  } else {
+    await ffmpeg.writeFile(`vid_${index}.mp4`, await fetchFile(item.file));
+    const dur = item.duration || 4;
+    await ffmpeg.exec([
+      '-i',`vid_${index}.mp4`,'-t', String(dur),
+      '-vf', `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=25,format=yuv420p`,
+      '-an', segName
+    ]);
+  }
+  return segName;
+}
+
+memGenerateBtn.addEventListener('click', async () => {
+  window.__activeLog = memLog;
+  memGenerateBtn.disabled = true;
+  memLogEl.textContent = '';
+  memResultsList.innerHTML = '';
+  memResultsSection.style.display = 'block';
+  try {
+    const orientation = document.getElementById('memOrientation').value;
+    const [W,H] = orientation === 'vertical' ? [720,1280] : [1280,720];
+    const defaultImgDur = parseFloat(document.getElementById('memImgDur').value);
+    const musicFile = document.getElementById('memMusic').files[0];
+
+    await loadFFmpeg(memLog);
+    const segFiles = [];
+    for (let i = 0; i < memItems.length; i++) {
+      memLog(`Préparation ${i+1}/${memItems.length} : ${memItems[i].file.name}...`);
+      segFiles.push(await buildSegment(memItems[i], i, W, H, defaultImgDur));
+    }
+
+    memLog('Assemblage du montage...');
+    await ffmpeg.writeFile('list.txt', segFiles.map(f => `file '${f}'`).join('\n'));
+    await ffmpeg.exec(['-f','concat','-safe','0','-i','list.txt','-c:v','libx264','-preset','fast','-crf','23','concat_out.mp4']);
+
+    let finalName = 'concat_out.mp4';
+    if (musicFile) {
+      memLog('Ajout de la musique...');
+      await ffmpeg.writeFile('music.mp3', await fetchFile(musicFile));
+      await ffmpeg.exec(['-i','concat_out.mp4','-i','music.mp3','-shortest','-map','0:v','-map','1:a','-c:v','copy','-c:a','aac','final.mp4']);
+      finalName = 'final.mp4';
+    }
+
+    const data = await ffmpeg.readFile(finalName);
+    const blob = new Blob([data.buffer], { type: 'video/mp4' });
+    const url = URL.createObjectURL(blob);
+    memResultsList.innerHTML = `<video src="${url}" controls style="width:100%;max-width:360px;display:block;margin-bottom:.75rem"></video>`;
+    const dlBtn = document.createElement('button');
+    dlBtn.className = 'secondary'; dlBtn.textContent = '⬇️ Télécharger le montage';
+    dlBtn.addEventListener('click', () => downloadBlob(blob, 'souvenirs.mp4'));
+    memResultsList.appendChild(dlBtn);
+    memLog('Terminé.');
+  } catch (e) {
+    memLog('Erreur : ' + e.message);
+    console.error(e);
+  } finally {
+    memGenerateBtn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
